@@ -2,15 +2,16 @@ from datetime import datetime
 
 
 class DomainError(Exception):
-    def __init__(self, code, message, status=400):
+    def __init__(self, code, message, status=400, details=None):
         super().__init__(message)
         self.code = code
         self.status = status
+        self.details = details
 
 
 class ConflictError(DomainError):
-    def __init__(self, code, message):
-        super().__init__(code, message, 409)
+    def __init__(self, code, message, details=None):
+        super().__init__(code, message, 409, details)
 
 
 class NotFoundError(DomainError):
@@ -35,6 +36,19 @@ def number(payload, name, minimum=None):
         raise DomainError("invalid_number", "%s 必须是数字" % name)
     if minimum is not None and value < minimum:
         raise DomainError("invalid_number", "%s 不能小于 %s" % (name, minimum))
+    return value
+
+
+def integer(payload, name, minimum=None):
+    value = payload.get(name)
+    if isinstance(value, bool):
+        raise DomainError("invalid_integer", "%s 必须是整数" % name)
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise DomainError("invalid_integer", "%s 必须是整数" % name)
+    if minimum is not None and value < minimum:
+        raise DomainError("invalid_integer", "%s 不能小于 %s" % (name, minimum))
     return value
 
 
@@ -66,8 +80,6 @@ def normalize_create(payload):
         "sensor_value_ppm": sensor_ppm,
         "odor_reports": odor_reports,
         "reporter": reporter,
-        "source_comparison": [],
-        "valve_sequence": [],
         "hazards_clear": False,
         "_stable_key": stable_key,
     }
@@ -77,13 +89,16 @@ def normalize_source(payload):
     source_type = require_text(payload, "source_type")
     external_id = require_text(payload, "external_id")
     observed_at = parse_timestamp(payload, "observed_at")
+    odor_reports = int(payload.get("odor_reports", 0) or 0)
+    if odor_reports < 0:
+        raise DomainError("invalid_odor_reports", "异味报告数不能为负数")
     result = {
         "source_type": source_type,
         "external_id": external_id,
         "observed_at": observed_at,
         "sensor_value_ppm": number(payload, "sensor_value_ppm", 0) if "sensor_value_ppm" in payload else None,
         "pressure_drop_kpa": number(payload, "pressure_drop_kpa", 0) if "pressure_drop_kpa" in payload else None,
-        "odor_reports": int(payload.get("odor_reports", 0) or 0),
-        "note": payload.get("note", ""),
+        "odor_reports": odor_reports,
+        "note": payload.get("note", "") if isinstance(payload.get("note", ""), str) else "",
     }
     return result

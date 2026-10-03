@@ -1,5 +1,13 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>燃气管线泄漏响应</title><body><h1>燃气管线泄漏检测与隔离协调</h1><p>使用 JSON API 创建泄漏事件、登记巡检或传感记录，并完成核验、隔离、抢修、试压与恢复。</p><pre>GET /health
-GET /api/state
-POST /api/items
-POST /api/items/{id}/sources
-POST /api/items/{id}/actions</pre></body></html>
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>燃气管线泄漏响应</title><body><h1>燃气管线泄漏检测与隔离协调</h1>
+<p>评定依据、来源记录与处置动作按现场依据版本接起来：来源新增或替换即重新评定；依据变更后原评定、隔离、抢修、试压结论全部作废并留痕，事件回到待核验。</p>
+<pre>GET  /health
+GET  /api/state
+GET  /api/items/{id}
+GET  /api/items/{id}/audit          # 审计哈希链 + chain_valid
+GET  /api/items/{id}/basis          # 当前依据版本与版本历史
+POST /api/items                     # 重复上报返回原记录(200, created=false)
+POST /api/items/{id}/sources        # 重复来源幂等返回；新增/替换触发重新评定与结论作废
+POST /api/items/{id}/source-batches/{batch_id}   # 离线批次连续页码，断点续传，同页只入库一次
+POST /api/items/{id}/actions        # 处置动作带 expected_version + expected_basis_revision</pre>
+<p>隔离、抢修、试压、恢复必须携带 <code>expected_basis_revision</code>；依据版本落后或内容对不上返回 409 <code>basis_conflict</code>，响应 details.basis_diff 给出字段与来源证据差异。</p>
+</body></html>
