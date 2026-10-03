@@ -32,22 +32,23 @@ class FailureTest(unittest.TestCase):
 
     def test_duplicate_and_valve_conflict(self):
         item = self.service.create_item(self.payload, "d", "dispatcher")
-        with self.assertRaises(ConflictError):
-            self.service.create_item(self.payload, "d", "dispatcher")
+        # 重复上报只返回原记录，不再抛冲突
+        duplicate = self.service.create_item(self.payload, "d", "dispatcher")
+        self.assertEqual(duplicate["id"], item["id"])
         item["payload"]["valve_status_conflict"] = False
-        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "r", "responder", item["version"])
+        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "r", "responder", item["basis_version"])
         with self.assertRaises(DomainError) as context:
-            self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1"]}, "s", "supervisor", item["version"])
+            self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1"]}, "s", "supervisor", item["basis_version"])
         self.assertEqual(context.exception.code, "valve_sequence_required")
 
     def test_version_conflict_and_permission(self):
         item = self.service.create_item(self.payload, "d", "dispatcher")
         with self.assertRaises(DomainError) as context:
-            self.service.act(item["id"], "verify", {"field_confirmed": True}, "x", "sensor", item["version"])
+            self.service.act(item["id"], "verify", {"field_confirmed": True}, "x", "sensor", item["basis_version"])
         self.assertEqual(context.exception.status, 403)
-        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "r", "responder", item["version"])
+        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "r", "responder", item["basis_version"])
         with self.assertRaises(ConflictError):
-            self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1", "V-2"]}, "s", "supervisor", item["version"] - 1)
+            self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1", "V-2"]}, "s", "supervisor", item["basis_version"] - 1)
 
 
 if __name__ == "__main__":

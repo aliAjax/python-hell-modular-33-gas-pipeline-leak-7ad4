@@ -14,7 +14,13 @@ ACTION_ROLES = {
 }
 ENFORCE_REGION = False
 REGION_SENSITIVE_ACTIONS = set()
-ACTION_REQUIRES_VERSION = {"isolate", "repair", "pressure_test", "restore", "cancel"}
+# 对外现场操作必须携带依据版本，版本落后或依据对不上时拒绝执行
+ACTION_REQUIRES_BASIS_VERSION = {"isolate", "repair", "pressure_test", "restore"}
+
+# 评定依据字段：来源记录聚合到现场依据
+BASIS_KEYS = ("pressure_drop_kpa", "sensor_value_ppm", "odor_reports")
+# 来源更新后一并作废的处置结论
+VOID_KEYS = ("verification", "valve_sequence", "repair", "pressure_test", "restoration")
 
 
 def assess(payload):
@@ -31,6 +37,47 @@ def assess(payload):
     else:
         level = "low"
     return {"score": round(score, 2), "level": level}
+
+
+def compute_basis(item, sources):
+    """从来源记录聚合出现场依据：以最新观测值覆盖初报值。
+
+    同一指标取观测时间最晚的来源记录；来源未覆盖的指标保留初报值。
+    """
+    basis = {key: item["payload"].get(key, 0) for key in BASIS_KEYS}
+    for source in sorted(sources, key=lambda s: s["observed_at"], reverse=True):
+        sp = source["payload"]
+        for key in BASIS_KEYS:
+            value = sp.get(key)
+            if value is not None:
+                basis[key] = value
+    return basis
+
+
+def basis_diff(current, submitted):
+    """返回当前依据与提交依据之间的差异（仅列出不一致字段）。"""
+    diff = {}
+    for key in BASIS_KEYS:
+        cur = current.get(key)
+        sub = submitted.get(key) if submitted else None
+        if cur != sub:
+            diff[key] = {"current": cur, "submitted": sub}
+    return diff
+
+
+def void_conclusions(payload):
+    """作废来源更新前的处置结论，返回被作废的字段列表。"""
+    voided = []
+    for key in VOID_KEYS:
+        value = payload.get(key)
+        if value:  # 仅作废有实际内容的结论（非空列表、非 None、非 False）
+            del payload[key]
+            voided.append(key)
+    if payload.get("hazards_clear"):
+        payload["hazards_clear"] = False
+        if "hazards_clear" not in voided:
+            voided.append("hazards_clear")
+    return voided
 
 
 def _need_status(item, allowed):
@@ -56,9 +103,8 @@ def apply_action(item, action, payload, actor, role):
         confirmed = bool(payload.get("field_confirmed"))
         if not confirmed:
             raise DomainError("field_confirmation_required", "需要现场确认", 409)
-        current["assessment"] = assess(current)
         current["verification"] = {"confirmed": True, "note": payload.get("note", "")}
-        return "verified", current, {"assessment": current["assessment"], "verification": current["verification"]}
+        return "verified", current, {"verification": current["verification"]}
 
     if action == "isolate":
         _need_status(item, {"verified"})

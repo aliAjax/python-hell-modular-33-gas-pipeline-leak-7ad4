@@ -30,12 +30,12 @@ class WorkflowTest(unittest.TestCase):
             "odor_reports": 3,
             "reporter": "dispatch-1",
         }, "dispatch-1", "dispatcher")
-        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "resp-1", "responder", item["version"])
-        self.assertEqual(item["payload"]["assessment"]["level"], "critical")
-        item = self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1", "V-2"]}, "sup-1", "supervisor", item["version"])
-        item = self.service.act(item["id"], "repair", {"work_order": "WO-1"}, "tech-1", "technician", item["version"])
-        item = self.service.act(item["id"], "pressure_test", {"test_passed": True, "pressure_kpa": 150, "minimum_pressure_kpa": 100}, "tech-1", "technician", item["version"])
-        item = self.service.act(item["id"], "restore", {"hazards_clear": True}, "sup-1", "supervisor", item["version"])
+        item = self.service.act(item["id"], "verify", {"field_confirmed": True}, "resp-1", "responder", item["basis_version"])
+        self.assertEqual(item["assessment"]["level"], "critical")
+        item = self.service.act(item["id"], "isolate", {"valve_sequence": ["V-1", "V-2"]}, "sup-1", "supervisor", item["basis_version"])
+        item = self.service.act(item["id"], "repair", {"work_order": "WO-1"}, "tech-1", "technician", item["basis_version"])
+        item = self.service.act(item["id"], "pressure_test", {"test_passed": True, "pressure_kpa": 150, "minimum_pressure_kpa": 100}, "tech-1", "technician", item["basis_version"])
+        item = self.service.act(item["id"], "restore", {"hazards_clear": True}, "sup-1", "supervisor", item["basis_version"])
         self.assertEqual(item["status"], "restored")
         self.assertGreaterEqual(len(item["audit"]), 6)
 
